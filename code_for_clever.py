@@ -15,7 +15,8 @@ def image_callback(data):
     cv_image = bridge.imgmsg_to_cv2(data, 'bgr8')  # OpenCV image
     output_frame, yaw = get_yaw(cv_image)
     image_pub.publish(bridge.cv2_to_imgmsg(output_frame, 'bgr8'))
-    yaw_pub.publish(yaw)
+    if yaw:
+        yaw_pub.publish(yaw)
 
 
 image_sub = rospy.Subscriber('main_camera/image_raw', Image, image_callback, queue_size=1)
