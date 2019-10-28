@@ -27,7 +27,7 @@ def get_yaw(frame):
         while mask[max_y].sum() == 0:
             max_y += 1
 
-    #cv2.imshow('mask', mask)
+    # cv2.imshow('mask', mask)
 
     cv2.circle(frame, (dx + int(np.where(mask[max_y] == 255)[0].mean()), max_y), 6, (0, 255, 255), cv2.FILLED)
     cv2.line(frame, center, (dx + int(np.where(mask[max_y] == 255)[0].mean()), max_y), (0, 255, 255), 3)
