@@ -6,7 +6,7 @@ from ahuet_kakoy_kod import get_yaw
 rospy.init_node('computer_vision_sample')
 bridge = CvBridge()
 
-image_pub = rospy.Publisher('~debug', Image)
+image_pub = rospy.Publisher('~debug', Image, queue_size=1)
 
 
 def image_callback(data):
