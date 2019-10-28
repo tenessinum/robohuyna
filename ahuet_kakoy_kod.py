@@ -33,8 +33,8 @@ def get_yaw(frame):
     cv2.line(frame, center, (dx + int(np.where(mask[max_y] == 255)[0].mean()), max_y), (0, 255, 255), 3)
 
     try:
-        yaw = math.degrees(
-            math.atan2(max_y - center[1], (dx + int(np.where(mask[max_y] == 255)[0].mean()) - center[0])) + pi_na_dva)
+        yaw = (math.atan2(max_y - center[1],
+                          (dx + int(np.where(mask[max_y] == 255)[0].mean()) - center[0])) + pi_na_dva) % (2 * math.pi)
     except:
         yaw = None
 
@@ -52,7 +52,6 @@ def get_yaw(frame):
                 found = True
                 radius = _x
                 break'''
-
     return frame, yaw  # , radius
 
 
