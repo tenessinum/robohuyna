@@ -3,7 +3,7 @@ import cv2
 import math
 
 lower = [0, 0, 0]
-higher = [60, 60, 60]
+higher = [40, 40, 40]
 lower_rgb = np.array(lower)
 higher_rgb = np.array(higher)
 size = width, height = 320, 240
@@ -11,6 +11,13 @@ center = width // 2, height // 2
 width_min, width_max = 100, 220
 height_min, height_max = 0, 150
 pi_na_dva = math.pi / 2
+
+max_velocity = 0.7
+
+
+def get_velocity(yaw):
+    global max_velocity
+    return max_velocity * (1 - abs(yaw) / math.pi)
 
 
 def find_nearest(array, value):
@@ -20,29 +27,32 @@ def find_nearest(array, value):
 
 
 def get_yaw(frame):
-    mask = cv2.inRange(frame[height_min:height_max, width_min:width_max], lower_rgb, higher_rgb)
+    global_mask = cv2.inRange(frame, lower_rgb, higher_rgb)
+    mask = global_mask[height_min:height_max, width_min:width_max]
+    # contours, _ = cv2.findContours(global_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # cv2.drawContours(frame, contours, -1, (255, 150, 100), 2)
     dx = width_min
     max_y = 0
+
     try:
         while mask[max_y].sum() == 0:
             max_y += 1
     except:
-        mask = cv2.inRange(frame[height_min:height_max, :], lower_rgb, higher_rgb)
+        mask = global_mask[height_min:height_max, :]
         dx = 0
         max_y = 0
         try:
             while mask[max_y].sum() == 0:
                 max_y += 1
         except:
-            mask = cv2.inRange(frame, lower_rgb, higher_rgb)
+            mask = global_mask
             try:
                 while mask[max_y].sum() == 0:
                     max_y += 1
             except:
                 return frame, None
 
-    # cv2.imshow('mask', mask)
-
+    # cv2.imshow('mask', global_mask)
     nearest_x = find_nearest(np.where(mask[max_y] == 255)[0], center[0])
 
     try:
@@ -50,7 +60,30 @@ def get_yaw(frame):
     except:
         yaw = None
 
-    cv2.circle(frame, (dx + nearest_x, max_y), 6, (0, 255, 255), cv2.FILLED)
+    long_mask = global_mask[:, width_min:width_max]
+    y_i = 0
+    _dx = width_min
+    while True:
+        try:
+            if long_mask[center[1] + y_i].sum() != 0:
+                break
+            elif long_mask[center[1] - y_i].sum() != 0:
+                y_i = -y_i
+                break
+            else:
+                y_i += 1
+        except:
+            long_mask = global_mask
+            y_i = 0
+            _dx = 0
+
+    try:
+        x_i = find_nearest(np.where(long_mask[center[1] + y_i] == 255)[0], center[0])
+        cv2.circle(frame, (x_i + _dx, center[1] + y_i), 4, (0, 0, 255), cv2.FILLED)
+    except:
+        pass
+
+    cv2.circle(frame, (dx + nearest_x, max_y), 5, (0, 255, 255), cv2.FILLED)
     cv2.line(frame, center, (dx + nearest_x, max_y), (0, 255, 255), 3)
 
     return frame, yaw  # , radius
