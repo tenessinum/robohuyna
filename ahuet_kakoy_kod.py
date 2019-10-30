@@ -3,7 +3,7 @@ import cv2
 import math
 
 lower = [0, 0, 0]
-higher = [60, 60, 60]
+higher = [50, 50, 50]
 lower_rgb = np.array(lower)
 higher_rgb = np.array(higher)
 size = width, height = 320, 240

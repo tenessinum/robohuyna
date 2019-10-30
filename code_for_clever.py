@@ -7,7 +7,7 @@ from ahuet_kakoy_kod import get_yaw
 rospy.init_node('computer_vision_sample')
 bridge = CvBridge()
 
-image_pub = rospy.Publisher('~debug', Image, queue_size=1)
+image_pub = rospy.Publisher('~/robo_flow/debug', Image, queue_size=1)
 yaw_pub = rospy.Publisher('~yaw', Float64, queue_size=1)
 
 
