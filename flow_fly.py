@@ -21,7 +21,7 @@ set_velocity = rospy.ServiceProxy('set_velocity', srv.SetVelocity)
 land = rospy.ServiceProxy('land', Trigger)
 
 yaw_p = 0.55
-y_p = -0.005
+y_p = 0.005
 midle_yaw = 0
 
 
@@ -34,7 +34,7 @@ def yaw_msg_callback(data):
     else:
         yaw, y = data.data
         print yaw, y * y_p
-        # set_velocity(vx=get_velocity(yaw), vy=y * y_p, vz=0, yaw=-yaw * yaw_p, frame_id="body")
+        set_velocity(vx=get_velocity(yaw), vy=-y * y_p, vz=0, yaw=-yaw * yaw_p, frame_id="body")
 
         current_time = time.time()
 
@@ -43,8 +43,8 @@ def yaw_msg_callback(data):
     return
 
 
-# navigate(x=0, y=0, z=1.2, speed=0.75, auto_arm=True, frame_id='body')
-# rospy.sleep(5)
+navigate(x=0, y=0, z=1.2, speed=0.75, auto_arm=True, frame_id='body')
+rospy.sleep(5)
 
 print 'Subscribe'
 take_yaw = rospy.Subscriber('computer_vision_sample/yaw', Float64MultiArray, yaw_msg_callback, queue_size=1)
