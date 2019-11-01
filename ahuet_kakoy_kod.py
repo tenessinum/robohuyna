@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import math
+from time import time
 
 lower = [0, 0, 0]
 higher = [40, 40, 40]
@@ -14,15 +15,20 @@ pi_na_dva = math.pi / 2
 
 max_velocity = 1
 
+average_time_dict = {
+    't': 0,
+    's': 0
+}
 
-def get_velocity(yaw):
+
+def get_velocity(_yaw):
     global max_velocity
-    return max_velocity * (1 - abs(yaw) / math.pi)
+    return max_velocity * (1 - abs(_yaw) / math.pi)
 
 
 def find_nearest(array, value):
     array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
+    idx = np.abs(array - value).argmin()
     return array[idx]
 
 
@@ -63,6 +69,7 @@ def get_yaw(frame):
     long_mask = global_mask[:, width_min:width_max]
     y_i = 0
     _dx = width_min
+
     while True:
         try:
             if long_mask[center[1] + y_i].sum() != 0:
@@ -77,16 +84,13 @@ def get_yaw(frame):
             y_i = 0
             _dx = 0
 
-    try:
-        x_i = find_nearest(np.where(long_mask[center[1] + y_i] == 255)[0], center[0])
-        cv2.circle(frame, (x_i + _dx, center[1] + y_i), 4, (0, 0, 255), cv2.FILLED)
-    except:
-        pass
+    x_i = find_nearest(np.where(long_mask[center[1] + y_i] == 255)[0], center[0])
+    cv2.circle(frame, (x_i + _dx, center[1] + y_i), 4, (0, 0, 255), cv2.FILLED)
 
     cv2.circle(frame, (dx + nearest_x, max_y), 5, (0, 255, 255), cv2.FILLED)
     cv2.line(frame, center, (dx + nearest_x, max_y), (0, 255, 255), 3)
 
-    return frame, yaw,  (x_i + dx - center[0])
+    return frame, yaw, (x_i + dx - center[0])
 
 
 if __name__ == '__main__':
@@ -96,14 +100,21 @@ if __name__ == '__main__':
         ret, frame = cap.read()
         if ret:
             frame = cv2.resize(frame, (width, height))
-            frame, yaw = get_yaw(frame)
+            t = time()
+            frame, yaw, y = get_yaw(frame)
+            average_time_dict['t'] += time() - t
+            average_time_dict['s'] += 1
             cv2.imshow('frame', frame)
             out.write(frame)
         else:
             break
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-
     cap.release()
     out.release()
     cv2.destroyAllWindows()
+    print average_time_dict['t'] / average_time_dict['s']
+
+# 0.00111650835135 - time taken to execute get_yaw with drawing contours
+# 0.000837510282343 - time taken to execute get_yaw without drawing contours
+# 1.33312793274 times longer
