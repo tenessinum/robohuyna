@@ -2,9 +2,10 @@ import numpy as np
 import cv2
 import math
 from time import time
+import matplotlib.pyplot as plt
 
 lower = [0, 0, 0]
-higher = [40, 40, 40]
+higher = [50, 50, 50]
 lower_rgb = np.array(lower)
 higher_rgb = np.array(higher)
 size = width, height = 320, 240
@@ -20,6 +21,19 @@ average_time_dict = {
     's': 0
 }
 
+sigmaEta = 4 # sensor disperson
+sigmaPsi = 4  # main dispersion
+times = []
+time_from_start = 0
+times.append(time_from_start)
+plt.figure(figsize=(10, 8))
+xn = []
+kalman_filtered = []
+crop_plot_value = 50
+
+prev_error = sigmaEta**2
+x_opt_prev = 0
+
 
 def get_velocity(_yaw):
     global max_velocity
@@ -32,6 +46,48 @@ def find_nearest(array, value):
     return array[idx]
 
 
+def kalman_easy(sensor_value):
+    global prev_error, x_opt_prev
+    sensor_value = sensor_value * 57.3
+
+    def middle_error(prev_error):
+        optimal_error = math.pow((sigmaEta**2 * (prev_error**2 + sigmaPsi**2)) / (prev_error**2 + sigmaPsi**2 + sigmaEta**2), 0.5)
+        return optimal_error
+
+    def kalman_value_next(prev_error):
+        middle_prev_error = middle_error(prev_error)
+        kalman_value = middle_prev_error**2 / sigmaEta**2
+        return kalman_value, middle_prev_error
+
+    def x_opt_next(x_opt_prev, kalman_value, sensor_value):
+        x_opt1 = kalman_value * sensor_value + (1 - kalman_value) * x_opt_prev
+        return x_opt1
+
+    xn.append(sensor_value)
+    kalman_value, prev_error = kalman_value_next(prev_error)
+    x_opt_prev = x_opt_next(x_opt_prev, kalman_value, sensor_value)
+    kalman_filtered.append(x_opt_prev)
+
+    print 'try plot'
+    if len(times) < crop_plot_value:
+        plt.plot(times[:], xn, '-bo', alpha=0.75)
+        plt.plot(times[:], kalman_filtered, '-ro')
+        plt.legend(('noisy signal', 'filtered signal'), loc='best')
+        plt.grid(True)
+        plt.show(block=False)
+        plt.pause(0.05)
+        plt.clf()
+    else:
+        plt.plot(times[len(times) - crop_plot_value:], xn[len(times) - crop_plot_value:], '-bo', alpha=0.75)
+        plt.plot(times[len(times) - crop_plot_value:], kalman_filtered[len(times) - crop_plot_value:], '-or')
+        plt.legend(('noisy signal', 'filtered signal'), loc='best')
+        plt.grid(True)
+        plt.show(block=False)
+        plt.pause(0.05)
+        plt.clf()
+    return x_opt_prev
+
+
 def get_yaw(frame):
     global_mask = cv2.inRange(frame, lower_rgb, higher_rgb)
     mask = global_mask[height_min:height_max, width_min:width_max]
@@ -39,6 +95,8 @@ def get_yaw(frame):
     # cv2.drawContours(frame, contours, -1, (255, 150, 100), 2)
     dx = width_min
     max_y = 0
+
+    global time_from_start, times
 
     try:
         while mask[max_y].sum() == 0:
@@ -58,6 +116,7 @@ def get_yaw(frame):
             except:
                 return frame, None, None
 
+    # print max_y
     # cv2.imshow('mask', global_mask)
     nearest_x = find_nearest(np.where(mask[max_y] == 255)[0], center[0])
 
@@ -65,6 +124,10 @@ def get_yaw(frame):
         yaw = math.atan2(max_y - center[1], dx + nearest_x - center[0]) + pi_na_dva
     except:
         yaw = None
+
+    yaw = kalman_easy(yaw)
+    time_from_start += 1
+    times.append(time_from_start)
 
     long_mask = global_mask[:, width_min:width_max]
     y_i = 0
@@ -90,6 +153,7 @@ def get_yaw(frame):
     cv2.circle(frame, (dx + nearest_x, max_y), 5, (0, 255, 255), cv2.FILLED)
     cv2.line(frame, center, (dx + nearest_x, max_y), (0, 255, 255), 3)
 
+    cv2.imshow('mask', global_mask)
     return frame, yaw, (x_i + dx - center[0])
 
 
