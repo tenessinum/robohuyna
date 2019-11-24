@@ -7,7 +7,6 @@ from std_msgs.msg import Float64MultiArray
 
 from clever import srv
 from std_srvs.srv import Trigger
-from ahuet_kakoy_kod import get_velocity
 
 rospy.init_node('fly')
 
@@ -20,30 +19,37 @@ set_velocity = rospy.ServiceProxy('set_velocity', srv.SetVelocity)
 # set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
 land = rospy.ServiceProxy('land', Trigger)
 
+
+max_velocity = 0.90
 yaw_p = 0.55
-y_p = 0.005
+y_p = 0.004
 midle_yaw = 0
+
+
+def get_velocity(_yaw):
+    global max_velocity
+    return max_velocity * (1 - abs(_yaw) / math.pi)
 
 
 def yaw_msg_callback(data):
     global current_time
     global midle_yaw, y_p
 
-    if time.time() < current_time + 0.07:
-        pass
-    else:
-        yaw, y = data.data
-        print yaw, y * y_p
-        set_velocity(vx=get_velocity(yaw), vy=-y * y_p, vz=0, yaw=-yaw * yaw_p, frame_id="body")
+    #if time.time() < current_time + 0.07:
+    #    pass
+    #else:
+    yaw, y = data.data
+    print yaw, y * y_p
+    set_velocity(vx=get_velocity(yaw), vy=-y * y_p, vz=0, yaw=-yaw * yaw_p, frame_id="body")
 
-        current_time = time.time()
+    current_time = time.time()
 
     # midle_yaw = midle_yaw * 0.9 + 0.1 * data.data
 
     return
 
 
-navigate(x=0, y=0, z=1.2, speed=0.75, auto_arm=True, frame_id='body')
+print navigate(x=0, y=0, z=1.4, speed=0.5, auto_arm=True, frame_id='body')
 rospy.sleep(5)
 
 print 'Subscribe'

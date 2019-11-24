@@ -18,6 +18,6 @@ def image_callback(data):
     if yaw:
         yaw_pub.publish(Float64MultiArray(data=[yaw, y]))
 
-
+print 'Subscribing to main_camera/image_raw'
 image_sub = rospy.Subscriber('main_camera/image_raw', Image, image_callback, queue_size=1)
 rospy.spin()
