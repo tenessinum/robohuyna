@@ -14,6 +14,8 @@ width_min, width_max = 100, 220
 height_min, height_max = 0, 150
 pi_na_dva = math.pi / 2
 
+kernel = np.ones((3, 3), np.uint8)
+
 average_time_dict = {
     't': 0,
     's': 0
@@ -30,6 +32,10 @@ def find_nearest(array, value):
     array = np.asarray(array)
     idx = np.abs(array - value).argmin()
     return array[idx]
+
+
+def triangle_crop(max_y):
+
 
 
 def kalman_easy(sensor_value):
@@ -57,13 +63,15 @@ def kalman_easy(sensor_value):
 
 def get_yaw(frame):
     global_mask = cv2.inRange(frame, lower_rgb, higher_rgb)
+    global_mask = cv2.erode(global_mask, kernel, iterations=1)
+    global_mask = cv2.dilate(global_mask, kernel, iterations=2)
     mask = global_mask[height_min:height_max, width_min:width_max]
     # contours, _ = cv2.findContours(global_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     # cv2.drawContours(frame, contours, -1, (255, 150, 100), 2)
     dx = width_min
     max_y = 0
 
-    global time_from_start, times
+    global global_mask
 
     try:
         while mask[max_y].sum() == 0:
@@ -119,32 +127,33 @@ def get_yaw(frame):
     cv2.circle(frame, (x_i + _dx, center[1] + y_i), 4, (0, 0, 255), cv2.FILLED)
 
     cv2.circle(frame, (dx + nearest_x, max_y), 5, (0, 255, 255), cv2.FILLED)
-    cv2.line(frame, center, (dx + nearest_x, max_y), (0, 255, 255), 3)
+    cv2.line(frame, center, (center[0] + int(math.tan(yaw) * 120), 0), (0, 255, 255), 3)
 
-    #cv2.imshow('mask', global_mask)
-    return frame, yaw, (x_i + dx - center[0])
+    cv2.imshow('mask', global_mask)
+    return frame, global_mask, yaw, (x_i + dx - center[0])
 
 
-#if __name__ == '__main__':
-#    cap = cv2.VideoCapture('assets/cool_vid.mp4')
-#    out = cv2.VideoWriter('output/output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 60.0, (width, height))
-#    while cap.isOpened():
-#        ret, frame = cap.read()
-#        if ret:
-#            frame = cv2.resize(frame, (width, height))
-#            t = time()
-#            frame, yaw, y = get_yaw(frame)
-#            average_time_dict['t'] += time() - t
-#            average_time_dict['s'] += 1
-#            cv2.imshow('frame', frame)
-#            out.write(frame)
-#        else:
-#            break
-#        if cv2.waitKey(1) & 0xFF == ord('q'):
-#            break
-#    cap.release()
-#    out.release()
-#    cv2.destroyAllWindows()
+if __name__ == '__main__':
+    cap = cv2.VideoCapture('assets/cool_vid.mp4')
+    out = cv2.VideoWriter('output/output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 60.0, (width, height))
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if ret:
+            frame = cv2.resize(frame, (width, height))
+            t = time()
+            frame, yaw, y = get_yaw(frame)
+            average_time_dict['t'] += time() - t
+            average_time_dict['s'] += 1
+
+            cv2.imshow('frame', frame)
+            out.write(frame)
+        else:
+            break
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
     print average_time_dict['t'] / average_time_dict['s']
 
 # 0.00111650835135 - time taken to execute get_yaw with drawing contours
