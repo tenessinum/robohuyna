@@ -5,14 +5,12 @@ from time import time, sleep
 
 # import matplotlib.pyplot as plt
 
-lower = [0, 0, 0]
-higher = [50, 50, 50]
-lower_rgb = np.array(lower)
-higher_rgb = np.array(higher)
+lower_mask_value = 0
+higher_mask_value = 50
 size = width, height = 320, 240
 center = width // 2, height // 2
-width_min, width_max = 100, 220
-height_min, height_max = 0, 150
+# width_min, width_max = 100, 220
+# height_min, height_max = 0, 150
 pi_na_dva = math.pi / 2
 last_yaw_point = (center[0], 0)
 
@@ -21,11 +19,22 @@ average_time_dict = {
     's': 0
 }
 
-sigmaEta = 3.5  # sensor disperson
+sigmaEta = 3.1  # sensor disperson
 sigmaPsi = 1  # main dispersion
-
 prev_error = sigmaEta ** 2
 x_opt_prev = 0
+
+kernel_edge = 5
+first_erode_iterations = 7
+second_dilate_iterations = 18  # should be about 2 times larger then first_erode_iterations
+delta_morphological_iterations = 2  # used to separate working wrea
+kernel = np.ones((kernel_edge, kernel_edge), np.uint8)
+
+# Function handlers
+on_clever = False
+enable_kalman_filter = False
+enable_mask_filter = False
+mask_debug = True
 
 
 def find_nearest(array, value):
@@ -66,6 +75,39 @@ def kalman_easy(sensor_value):
     return x_opt_prev
 
 
+def get_filtered_area(g_mask):
+    """
+    The function that selects the main working area for subsequent processing
+
+    :param image: grayscale main image
+    :return:
+    contours: array contaiting the main contour of working area
+    """
+    filter_mask = cv2.erode(g_mask, kernel, iterations=first_erode_iterations)
+    filter_mask = cv2.dilate(filter_mask, kernel, iterations=second_dilate_iterations)
+    filter_mask = cv2.erode(filter_mask, kernel, iterations=second_dilate_iterations-first_erode_iterations+delta_morphological_iterations)
+    if on_clever:
+        _, contours, _ = cv2.findContours(filter_mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    else:
+        contours, hierarchy = cv2.findContours(filter_mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    filter_mask = cv2.bitwise_not(filter_mask)
+    g_mask = cv2.bitwise_or(g_mask, filter_mask)
+    g_mask = cv2.bitwise_not(g_mask)
+    return g_mask, contours
+
+
+def get_mask(frame, reverse=0):
+    if not reverse:
+        print 'not reverse'
+        mask = cv2.inRange(frame, np.full(3, lower_mask_value), np.full(3, higher_mask_value))
+    else:
+        mask = cv2.inRange(frame,
+                           np.full(3, math.fabs(higher_mask_value - 255)),
+                           np.full(3, math.fabs(lower_mask_value - 255)))
+        print math.fabs(higher_mask_value - 255), math.fabs(lower_mask_value - 255)
+    return mask
+
+
 def get_yaw(frame):
     global_mask = cv2.inRange(frame, lower_rgb, higher_rgb)
     mask = global_mask[height_min:height_max, width_min:width_max]
@@ -73,8 +115,6 @@ def get_yaw(frame):
     # cv2.drawContours(frame, contours, -1, (255, 150, 100), 2)
     dx = width_min
     max_y = 0
-
-    global time_from_start, times
 
     try:
         while mask[max_y].sum() == 0:
@@ -138,10 +178,22 @@ def get_yaw(frame):
 
 def get_better_yaw(frame):
     global last_yaw_point
-    global_mask = get_mask(frame)
 
-    yaw_coord_from_center = find_nearest_white(global_mask, (center[0], 0))[0]
-    yaw_coords = find_nearest_white(global_mask, last_yaw_point)
+    if enable_mask_filter:
+        global_mask = get_mask(frame, reverse=1)
+        global_mask, contours = get_filtered_area(global_mask)
+        cv2.drawContours(frame, contours, -1, (0, 255, 0), 1)
+    else:
+        global_mask = get_mask(frame)
+
+    try:
+        yaw_coord_from_center = find_nearest_white(global_mask, (center[0], 0))[0]
+        yaw_coords = find_nearest_white(global_mask, last_yaw_point)
+    except TypeError:
+        if mask_debug:
+            return frame, global_mask, 0, 0
+        else:
+            return frame, 0, 0
     yaw_coord = yaw_coords[0]
 
     for y in yaw_coords:
@@ -153,26 +205,27 @@ def get_better_yaw(frame):
 
     y_coords = find_nearest_white(global_mask, center)[0]
 
-    cv2.circle(frame, tuple(yaw_coord), 5, (255, 0, 255), cv2.FILLED)
-    cv2.circle(frame, tuple(y_coords), 5, (0, 255, 255), cv2.FILLED)
-    cv2.line(frame, center, tuple(y_coords), (0, 255, 255), 3)
-    cv2.line(frame, center, tuple(yaw_coord), (255, 0, 255), 3)
-
     yaw = math.atan2(yaw_coord[1] - center[1], yaw_coord[0] - center[0]) + pi_na_dva
 
     if yaw > math.pi:
         yaw -= 2 * math.pi
 
-    return frame, yaw, y_coords[0] - center[0]
+    if enable_kalman_filter:
+        yaw = kalman_easy(yaw) / 100
 
+    cv2.circle(frame, tuple(yaw_coord), 5, (255, 0, 255), cv2.FILLED)
+    cv2.circle(frame, tuple(y_coords), 5, (0, 255, 255), cv2.FILLED)
+    cv2.line(frame, center, tuple(y_coords), (0, 255, 255), 3)
+    cv2.line(frame, center, (int(center[0] + math.tan(yaw) * center[1]), 0), (255, 0, 255), 3)
 
-def get_mask(frame):
-    mask = cv2.inRange(frame, lower_rgb, higher_rgb)
-    return mask
+    if mask_debug:
+        return frame, global_mask, yaw, y_coords[0] - center[0]
+    else:
+        return frame, yaw, y_coords[0] - center[0]
 
 
 if __name__ == '__main__':
-    cap = cv2.VideoCapture('assets/flow_line_testv2.mp4')
+    cap = cv2.VideoCapture('assets/test_vid.mp4')
     out = cv2.VideoWriter('output/output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 60.0, (width, height))
 
     while cap.isOpened():
@@ -180,14 +233,16 @@ if __name__ == '__main__':
         if ret:
             frame = cv2.resize(frame, (width, height))
             t = time()
-            try:
+            if mask_debug:
+                frame, mask, yaw, y = get_better_yaw(frame)
+                cv2.imshow('global_mask', mask)
+            else:
                 frame, yaw, y = get_better_yaw(frame)
-            except TypeError:
-                print('No line detected')
+            cv2.imshow('frame', frame)
             average_time_dict['t'] += time() - t
             average_time_dict['s'] += 1
-            cv2.imshow('frame', frame)
             out.write(frame)
+            sleep(0.05)
         else:
             break
         if cv2.waitKey(1) & 0xFF == ord('q'):

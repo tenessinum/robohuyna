@@ -7,7 +7,7 @@ from std_msgs.msg import Float64MultiArray
 
 from clever import srv
 from std_srvs.srv import Trigger
-from ahuet_kakoy_kod import get_velocity
+
 
 rospy.init_node('fly')
 
@@ -20,26 +20,35 @@ set_velocity = rospy.ServiceProxy('set_velocity', srv.SetVelocity)
 # set_rates = rospy.ServiceProxy('set_rates', srv.SetRates)
 land = rospy.ServiceProxy('land', Trigger)
 
+start_velocity = 0.5
+max_velocity = 1.5
+time_to_max_velocity = 5
+velocity = start_velocity
+
 yaw_p = 0.55
 y_p = 0.005
 midle_yaw = 0
 
 
-def yaw_msg_callback(data):
-    global current_time
-    global midle_yaw, y_p
-
-    if time.time() < current_time + 0.07:
-        pass
+def up_speed():
+    global velocity
+    if start_time + time_to_max_velocity > time.time():
+        delta_speed = (1 - (start_time + time_to_max_velocity - time.time()) / time_to_max_velocity) * (max_velocity - start_velocity)
+        velocity = start_velocity + delta_speed
     else:
-        yaw, y = data.data
-        print yaw, y * y_p
-        set_velocity(vx=get_velocity(yaw), vy=-y * y_p, vz=0, yaw=-yaw * yaw_p, frame_id="body")
+        velocity = max_velocity
 
-        current_time = time.time()
 
-    # midle_yaw = midle_yaw * 0.9 + 0.1 * data.data
+def get_velocity(_yaw):
+    up_speed()
+    return velocity * (1 - abs(_yaw) / math.pi)
 
+
+def yaw_msg_callback(data):
+    yaw, y = data.data
+    print "yaw: {}, y velocity: {}".format(yaw, y * y_p)
+    y_vel = -y * y_p * (abs(yaw) / math.pi)
+    set_velocity(vx=get_velocity(yaw), vy=y_vel, vz=0, yaw=-yaw * yaw_p, frame_id="body")
     return
 
 
@@ -49,6 +58,6 @@ rospy.sleep(5)
 print 'Subscribe'
 take_yaw = rospy.Subscriber('computer_vision_sample/yaw', Float64MultiArray, yaw_msg_callback, queue_size=1)
 
-current_time = time.time()
+start_time = time.time()
 
 rospy.spin()
