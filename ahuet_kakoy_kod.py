@@ -3,7 +3,13 @@ import numpy as np
 import math
 from time import time, sleep
 
-# import matplotlib.pyplot as plt
+
+# Function handlers
+on_clever = False
+enable_grayscale = False
+enable_kalman_filter = True
+enable_mask_filter = False
+mask_debug = True
 
 lower_mask_value = 0
 higher_mask_value = 50
@@ -29,12 +35,6 @@ first_erode_iterations = 7
 second_dilate_iterations = 18  # should be about 2 times larger then first_erode_iterations
 delta_morphological_iterations = 2  # used to separate working wrea
 kernel = np.ones((kernel_edge, kernel_edge), np.uint8)
-
-# Function handlers
-on_clever = False
-enable_kalman_filter = False
-enable_mask_filter = False
-mask_debug = True
 
 
 def find_nearest(array, value):
@@ -79,8 +79,9 @@ def get_filtered_area(g_mask):
     """
     The function that selects the main working area for subsequent processing
 
-    :param image: grayscale main image
+    :param image: binary main image
     :return:
+    g_mask:
     contours: array contaiting the main contour of working area
     """
     filter_mask = cv2.erode(g_mask, kernel, iterations=first_erode_iterations)
@@ -98,12 +99,17 @@ def get_filtered_area(g_mask):
 
 def get_mask(frame, reverse=0):
     if not reverse:
-        mask = cv2.inRange(frame, np.full(3, lower_mask_value), np.full(3, higher_mask_value))
+        if enable_grayscale:
+            mask = cv2.inRange(frame, lower_mask_value, higher_mask_value)
+        else:
+            mask = cv2.inRange(frame, np.full(3, lower_mask_value), np.full(3, higher_mask_value))
     else:
-        mask = cv2.inRange(frame,
-                           np.full(3, math.fabs(higher_mask_value - 255)),
-                           np.full(3, math.fabs(lower_mask_value - 255)))
-        print math.fabs(higher_mask_value - 255), math.fabs(lower_mask_value - 255)
+        if enable_grayscale:
+            mask = cv2.inRange(frame, math.fabs(higher_mask_value - 255), math.fabs(lower_mask_value - 255))
+        else:
+            mask = cv2.inRange(frame,
+                               np.full(3, math.fabs(higher_mask_value - 255)),
+                               np.full(3, math.fabs(lower_mask_value - 255)))
     return mask
 
 
@@ -178,12 +184,22 @@ def get_mask(frame, reverse=0):
 def get_better_yaw(frame):
     global last_yaw_point
 
+    if enable_grayscale:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
     if enable_mask_filter:
-        global_mask = get_mask(frame, reverse=1)
+        if enable_grayscale:
+            global_mask = get_mask(gray, reverse=1)
+        else:
+            global_mask = get_mask(frame, reverse=1)
+
         global_mask, contours = get_filtered_area(global_mask)
         cv2.drawContours(frame, contours, -1, (0, 255, 0), 1)
     else:
-        global_mask = get_mask(frame)
+        if enable_grayscale:
+            global_mask = get_mask(gray)
+        else:
+            global_mask = get_mask(frame)
 
     try:
         yaw_coord_from_center = find_nearest_white(global_mask, (center[0], 0))[0]
@@ -224,7 +240,7 @@ def get_better_yaw(frame):
 
 
 if __name__ == '__main__':
-    cap = cv2.VideoCapture('assets/test_vid.mp4')
+    cap = cv2.VideoCapture('assets/cool_vid.mp4')
     out = cv2.VideoWriter('output/output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 60.0, (width, height))
 
     while cap.isOpened():
