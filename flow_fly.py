@@ -44,10 +44,21 @@ def get_velocity(_yaw):
     return velocity * (1 - abs(_yaw) / math.pi)
 
 
+def yaw_to_y(_y, _yaw, method=3):
+    if method == 0:
+        return _y * y_p * (abs(_yaw) / math.pi)
+    elif method == 1:
+        return 370 * (_y * y_p * (abs(_yaw) / math.pi)) ** 4
+    elif method == 2:
+        return 60 * _y * y_p * (abs(_yaw) / math.pi) ** 3
+    elif method == 3:
+        return max(yaw_to_y(_y, _yaw, method=0), yaw_to_y(_y, _yaw, method=2), key=abs)
+
+
 def yaw_msg_callback(data):
     yaw, y = data.data
     print "yaw: {}, y velocity: {}".format(yaw, y * y_p)
-    y_vel = -y * y_p * (abs(yaw) / math.pi)
+    y_vel = -yaw_to_y(y, yaw)
     set_velocity(vx=get_velocity(yaw), vy=y_vel, vz=0, yaw=-yaw * yaw_p, frame_id="body")
     return
 
