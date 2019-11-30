@@ -5,13 +5,13 @@ from time import time, sleep
 
 # Function handlers
 on_clever = False
-enable_grayscale = False
+enable_grayscale = True
 enable_kalman_filter = True
-enable_mask_filter = False
+enable_mask_filter = True
 mask_debug = True
 
-lower_mask_value = 80
-higher_mask_value = 150
+lower_mask_value = 180
+higher_mask_value = 255
 size = width, height = 320, 240
 center = width // 2, height // 2
 # width_min, width_max = 100, 220
@@ -31,10 +31,10 @@ sigmaPsi = 1  # main dispersion
 prev_error = sigmaEta ** 2
 x_opt_prev = 0
 
-kernel_edge = 5
-first_erode_iterations = 7
-second_dilate_iterations = 18  # should be about 2 times larger then first_erode_iterations
-delta_morphological_iterations = 2  # used to separate working wrea
+kernel_edge = 3
+first_erode_iterations = 10
+second_dilate_iterations = 14  # should be about 2 times larger then first_erode_iterations
+delta_morphological_iterations = 17  # used to separate working wrea
 kernel = np.ones((kernel_edge, kernel_edge), np.uint8)
 
 
@@ -87,10 +87,10 @@ def get_filtered_area(g_mask):
     g_mask:
     contours: array contaiting the main contour of working area
     """
+    g_mask = cv2.bitwise_not(g_mask)
     filter_mask = cv2.erode(g_mask, kernel, iterations=first_erode_iterations)
     filter_mask = cv2.dilate(filter_mask, kernel, iterations=second_dilate_iterations)
-    filter_mask = cv2.erode(filter_mask, kernel,
-                            iterations=second_dilate_iterations - first_erode_iterations + delta_morphological_iterations)
+    filter_mask = cv2.erode(filter_mask, kernel, iterations=second_dilate_iterations-first_erode_iterations+delta_morphological_iterations)
     if on_clever:
         _, contours, _ = cv2.findContours(filter_mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     else:
@@ -193,9 +193,9 @@ def get_better_yaw(frame):
 
     if enable_mask_filter:
         if enable_grayscale:
-            global_mask = get_mask(gray, reverse=1)
+            global_mask = get_mask(gray)
         else:
-            global_mask = get_mask(frame, reverse=1)
+            global_mask = get_mask(frame)
 
         global_mask, contours = get_filtered_area(global_mask)
         cv2.drawContours(frame, contours, -1, (0, 255, 0), 1)
@@ -204,6 +204,10 @@ def get_better_yaw(frame):
             global_mask = get_mask(gray)
         else:
             global_mask = get_mask(frame)
+
+
+    global_mask = cv2.erode(global_mask, kernel, iterations=1)
+    global_mask = cv2.dilate(global_mask, kernel, iterations=1)
 
     try:
         yaw_coord_from_center = find_nearest_white(global_mask, (center[0], 0))[0]
@@ -258,7 +262,7 @@ def get_better_yaw(frame):
 
 
 if __name__ == '__main__':
-    cap = cv2.VideoCapture('assets/v1.mp4')
+    cap = cv2.VideoCapture('assets/untitled.mp4')
     out = cv2.VideoWriter('output/output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 60.0, (width, height))
 
     while cap.isOpened():

@@ -21,12 +21,12 @@ set_velocity = rospy.ServiceProxy('set_velocity', srv.SetVelocity)
 land = rospy.ServiceProxy('land', Trigger)
 
 start_velocity = 0.5
-max_velocity = 1.5
-time_to_max_velocity = 5
+max_velocity = 1
+time_to_max_velocity = 6
 velocity = start_velocity
 
-yaw_p = 0.55
-y_p = 0.005
+yaw_p = 0.75
+y_p = 0.010
 midle_yaw = 0
 
 
