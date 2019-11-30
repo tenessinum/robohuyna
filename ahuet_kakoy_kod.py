@@ -3,7 +3,6 @@ import numpy as np
 import math
 from time import time, sleep
 
-
 # Function handlers
 on_clever = False
 enable_grayscale = False
@@ -11,14 +10,16 @@ enable_kalman_filter = True
 enable_mask_filter = False
 mask_debug = True
 
-lower_mask_value = 0
-higher_mask_value = 50
+lower_mask_value = 80
+higher_mask_value = 150
 size = width, height = 320, 240
 center = width // 2, height // 2
 # width_min, width_max = 100, 220
 # height_min, height_max = 0, 150
 pi_na_dva = math.pi / 2
 last_yaw_point = (center[0], 0)
+last_yaw = 0
+last_y = 0
 
 average_time_dict = {
     't': 0,
@@ -47,6 +48,8 @@ def find_nearest_white(img, target):
     nonzero = cv2.findNonZero(img)
     distances = np.sqrt((nonzero[:, :, 0] - target[0]) ** 2 + (nonzero[:, :, 1] - target[1]) ** 2)
     nearest_index = np.argmin(distances)
+    if distances[nearest_index] > 60:
+        raise NameError
     return nonzero[nearest_index]
 
 
@@ -86,7 +89,8 @@ def get_filtered_area(g_mask):
     """
     filter_mask = cv2.erode(g_mask, kernel, iterations=first_erode_iterations)
     filter_mask = cv2.dilate(filter_mask, kernel, iterations=second_dilate_iterations)
-    filter_mask = cv2.erode(filter_mask, kernel, iterations=second_dilate_iterations-first_erode_iterations+delta_morphological_iterations)
+    filter_mask = cv2.erode(filter_mask, kernel,
+                            iterations=second_dilate_iterations - first_erode_iterations + delta_morphological_iterations)
     if on_clever:
         _, contours, _ = cv2.findContours(filter_mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     else:
@@ -113,7 +117,7 @@ def get_mask(frame, reverse=0):
     return mask
 
 
-#def get_yaw(frame):
+# def get_yaw(frame):
 #    global_mask = cv2.inRange(frame, lower_rgb, higher_rgb)
 #    mask = global_mask[height_min:height_max, width_min:width_max]
 #    contours, _ = cv2.findContours(global_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -182,7 +186,7 @@ def get_mask(frame, reverse=0):
 
 
 def get_better_yaw(frame):
-    global last_yaw_point
+    global last_yaw_point, last_yaw, last_y
 
     if enable_grayscale:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -209,6 +213,12 @@ def get_better_yaw(frame):
             return frame, global_mask, 0, 0
         else:
             return frame, 0, 0
+    except NameError:
+        if mask_debug:
+            return frame, global_mask, last_yaw, last_y
+        else:
+            return frame, last_yaw, last_y
+
     yaw_coord = yaw_coords[0]
 
     for y in yaw_coords:
@@ -218,7 +228,13 @@ def get_better_yaw(frame):
     yaw_coord = (yaw_coord + yaw_coord_from_center) // 2
     last_yaw_point = yaw_coord
 
-    y_coords = find_nearest_white(global_mask, center)[0]
+    try:
+        y_coords = find_nearest_white(global_mask, center)[0]
+    except NameError:
+        if mask_debug:
+            return frame, global_mask, last_yaw, last_y
+        else:
+            return frame, last_yaw, last_y
 
     yaw = math.atan2(yaw_coord[1] - center[1], yaw_coord[0] - center[0]) + pi_na_dva
 
@@ -233,6 +249,8 @@ def get_better_yaw(frame):
     cv2.line(frame, center, tuple(y_coords), (0, 255, 255), 3)
     cv2.line(frame, center, (int(center[0] + math.tan(yaw) * center[1]), 0), (255, 0, 255), 3)
 
+    last_yaw, last_y = yaw, y_coords[0] - center[0]
+
     if mask_debug:
         return frame, global_mask, yaw, y_coords[0] - center[0]
     else:
@@ -240,7 +258,7 @@ def get_better_yaw(frame):
 
 
 if __name__ == '__main__':
-    cap = cv2.VideoCapture('assets/cool_vid.mp4')
+    cap = cv2.VideoCapture('assets/v1.mp4')
     out = cv2.VideoWriter('output/output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 60.0, (width, height))
 
     while cap.isOpened():
@@ -257,7 +275,7 @@ if __name__ == '__main__':
             average_time_dict['t'] += time() - t
             average_time_dict['s'] += 1
             out.write(frame)
-            sleep(0.05)
+            # sleep(0.05)
         else:
             break
         if cv2.waitKey(1) & 0xFF == ord('q'):
